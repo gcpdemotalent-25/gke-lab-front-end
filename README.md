@@ -1,70 +1,44 @@
-# Getting Started with Create React App
+# Projet Frontend React - Lab de déploiement sur GKE
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Ce projet est l'interface utilisateur de notre application de laboratoire. C'est une application React simple (`create-react-app`) qui appelle le service backend pour afficher un message. Elle est conçue pour être servie par un serveur Nginx, le tout empaqueté dans une image Docker prête pour GKE.
 
-## Available Scripts
+## Prérequis
 
-In the project directory, you can run:
+*   Node.js 18+
+*   npm (généralement inclus avec Node.js)
+*   Docker Desktop (pour les tests d'image en local)
 
-### `npm start`
+## Lancement en local
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+Pour développer et tester l'interface sur votre machine locale :
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+1.  **Installez les dépendances** :
+    ```bash
+    npm install
+    ```
 
-### `npm test`
+2.  **Lancez le serveur de développement** :
+    > **Important** : Assurez-vous que le service backend est en cours d'exécution sur `http://localhost:8080` avant de lancer le frontend.
+    ```bash
+    npm start
+    ```
+    Votre navigateur devrait s'ouvrir automatiquement sur `http://localhost:3000`.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+3.  **Proxy de développement** :
+    Le fichier `package.json` contient la ligne `"proxy": "http://localhost:8080"`. Cela indique au serveur de développement de React de rediriger toutes les requêtes API inconnues (comme `/api/hello`) vers notre backend local. Cela évite les problèmes de CORS pendant le développement.
 
-### `npm run build`
+## Dockerisation et le rôle de Nginx
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Notre `Dockerfile` utilise une approche de **"multi-stage build"**, une pratique recommandée pour les applications frontend :
+1.  **Étape `build`** : Une image Node.js est utilisée pour installer les dépendances et exécuter `npm run build`, ce qui génère les fichiers statiques (HTML, CSS, JS) optimisés pour la production.
+2.  **Étape `serve`** : Une image Nginx très légère est utilisée. Les fichiers statiques de l'étape précédente y sont copiés.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+Le fichier `nginx.conf` est crucial. Il configure Nginx pour :
+*   **Servir les fichiers React** : Toutes les requêtes standards (`/`, `/static`, etc.) servent les fichiers de l'application.
+*   **Agir comme un proxy inverse** : Toute requête dont l'URL commence par `/api` est redirigée vers le service backend de Kubernetes (`proxy_pass http://backend-service:8080;`). C'est ainsi que le frontend et le backend communiquent en production, sans aucun problème de CORS.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Pour construire l'image :
+```bash
+# Assurez-vous que la variable d'environnement PROJECT_ID est définie
+# export PROJECT_ID=$(gcloud config get-value project)
+docker build -t europe-west1-docker.pkg.dev/${PROJECT_ID}/gke-lab-repo/frontend:v1 .
